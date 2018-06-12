@@ -1,0 +1,136 @@
+library(data.table)
+library(caret)
+library(randomForest)
+#Reading the Data Set
+train_labels <- read.csv("Training_set_labels.csv", sep=",", header=T, strip.white = T, na.strings = c("NA","NaN","","?"))
+train_data <- read.csv("Training_set_values.csv", sep=",", header=T, strip.white = T, na.strings = c("NA","NaN","","?"))
+train_data$status_group <-as.factor(train_labels$status_group) Original_train_data<-train_data
+test_set_orginal <- read.csv("Test_set_values.csv", sep=",", header=T, strip.white = T, na.strings = c("NA","NaN","","?"))
+test_set_orginal_copy<-test_set_orginal
+#Constructing a table that shows the distribution of status values in training set table(train_data$status_group)
+#Shows the proportion of status values in training set prop.table(table(train_data$status_group))
+#Constructing a table that shows the distribution of quantity vs status group in training set table(train_data$quantity , train_data$status_group)
+# Shows the proportion of quantity vs status group in training set prop.table(table(train_data$quantity, train_data$status_group), margin = 1)
+#Using the library ggplot for the plots
+library(ggplot2)
+ 
+DSBA/ MBAD 6211: Advanced Business Analytics - Spring 2018 - Project Report
+# Plot for distribution of Quantity based on Status_Group qplot(quantity, data=train_data, geom="bar", fill=status_group) +
+theme(legend.position = "top")+
+ggtitle("Plot showing distribution of Quantity based on Status_Group") # Plot for distribution of quality_group based on Status_Group qplot(quality_group, data=train_data, geom="bar", fill=status_group) +
+theme(legend.position = "top")+
+ggtitle("Plot showing distribution of quality_group based on Status_Group") # Plot for construction_year` grouped by `status_group
+ggplot(train_data, aes(x =construction_year)) +
+geom_histogram(bins = 20) +
+facet_grid( ~ status_group)+
+ggtitle("Plot showing construction_year` grouped by `status_group`")
+# Plot for construction_year > 0 ` grouped by `status_group ggplot(subset(train_data, construction_year > 0), aes(x = construction_year)) +
+geom_histogram(bins = 20) +
+facet_grid( ~ status_group)+
+ggtitle("Plot showing construction_year > 0 ` grouped by `status_group`")
+train_data<-subset(train_data,select = -c(id,water_quality,wpt_name,waterpoint_type_group, num_private,extraction_type,extraction_type_group,payment_type,source,source_class,region _code,district_code,subvillage,lga,ward,quantity_group,recorded_b,scheme_name,manageme nt_group))
+test_set_orginal<-subset(test_set_orginal,select= - c(id,water_quality,wpt_name,waterpoint_type_group, num_private,extraction_type,extraction_type_group,payment_type,source,source_class,region _code, district_code, subvillage,lga, ward, quantity_group, recorded_by,scheme_name,management_group))
+num_of_days <- as.numeric(as.Date("2014-01-01") - as.Date(train_data$date_recorded)) date_recorded_month <- factor(format(as.Date(train_data$date_recorded), "%b")) train_data <- train_data[, -which(names(train_data) == "date_recorded")]
+
+DSBA/ MBAD 6211: Advanced Business Analytics - Spring 2018 - Project Report
+train_data <- cbind(train_data, num_of_days) train_data <- cbind(train_data, date_recorded_month)
+num_of_days_test <- as.numeric(as.Date("2014-01-01") - as.Date(test_set_orginal$date_recorded))
+date_recorded_month_test <- factor(format(as.Date(test_set_orginal$date_recorded), "%b")) test_set_orginal <- test_set_orginal[, -which(names(test_set_orginal) == "date_recorded")] test_set_orginal$num_of_days <- num_of_days_test
+test_set_orginal$date_recorded_month <- date_recorded_month_test
+#Reduce the number of levels in the Funder(15 Levels) train_data$funder<-replace(train_data$funder,train_data$funder=='0',NA) funder_names<-names(summary(train_data$funder)[1:15])
+funder <- factor(train_data$funder, levels=c(funder_names, "Other")) funder[is.na(funder)] <- "Other"
+train_data$funder <- funder
+#summary(train_data$funder)
+#nlevels(train_data$funder) test_set_orginal$funder<-replace(test_set_orginal$funder,test_set_orginal$funder=='0',NA) funder_test <- factor(test_set_orginal$funder, levels=c(funder_names, "Other")) funder_test[is.na(funder_test)] <- "Other"
+test_set_orginal$funder <- funder_test
+#Converting to lower case installer column
+#Reduce the number of levels to 15 + other train_data$installer<-replace(train_data$installer,train_data$installer=='0',NA) train_data$installer <- substr(tolower(train_data$installer),1,3) train_data$installer<-as.factor(train_data$installer)
+
+DSBA/ MBAD 6211: Advanced Business Analytics - Spring 2018 - Project Report
+installer_names<-names(summary(train_data$installer)[1:15])
+installer <- factor(train_data$installer, levels=c(installer_names, "Other"))
+installer[is.na(installer)] <- "Other"
+train_data$installer<-as.factor(installer)
+#summary(train_data$installer)
+#nlevels(train_data$installer)
+#nlevels(as.factor(tolower(train_data$installer)))
+test_set_orginal$installer<- replace(test_set_orginal$installer,test_set_orginal$installer=='0',NA)
+test_set_orginal$installer <- substr(tolower(test_set_orginal$installer),1,3) test_set_orginal$installer<-as.factor(test_set_orginal$installer)
+installer_test <- factor(test_set_orginal$installer, levels=c(installer_names, "Other")) installer_test[is.na(installer_test)] <- "Other" test_set_orginal$installer<-as.factor(installer_test)
+train_data$scheme_management<- replace(train_data$scheme_management,train_data$scheme_management=='None','Other')
+train_data$scheme_management<-factor(train_data$scheme_management) library(VIM)
+train_data<-hotdeck(train_data)
+train_data<-train_data[,1:23]
+test_set_orginal<-hotdeck(test_set_orginal) test_set_orginal<-test_set_orginal[,1:22] trainIndex = sample(1:nrow(train_data),
+size = round(0.8*nrow(train_data)),
+replace=FALSE) train_sample = train_data[trainIndex,] test_sample = train_data[-trainIndex,]
+
+DSBA/ MBAD 6211: Advanced Business Analytics - Spring 2018 - Project Report
+#Random Forest
+# Load the randomForest library
+library(randomForest)
+model_forest <- randomForest(as.factor(status_group) ~ ., data = train_sample,
+importance = TRUE, ntree = 100,proximity=F, na.action=na.exclude)
+pred_forest_test_sample <- predict(model_forest, test_sample) library(caret)
+confusionMatrix(pred_forest_test_sample, test_sample$status_group) #Predicting the original Test set pred_forest_test_original<-predict(model_forest, test_set_orginal)
+final_op_forest<- data.frame(id=test_set_orginal_copy$id,status_group=pred_forest_test_original)
+write.csv(final_op_forest, file = "pump1.csv")
+#Random Forest Model 2
+#Load the randomForest library
+library(randomForest)
+model_forest_1 <- randomForest(as.factor(status_group) ~ ., data = train_data,
+importance = TRUE, ntree = 60,mtry=4,proximity=F, na.action=na.exclude) pred_forest_test_sample_1 <- predict(model_forest_1, train_data)
+library(caret)
+confusionMatrix(pred_forest_test_sample_1, train_data$status_group)
+#Predicting the original Test set
+pred_forest_test_original_1<-predict(model_forest_1, test_set_orginal)
+
+final_op_forest_1<- data.frame(id=test_set_orginal_copy$id,status_group=pred_forest_test_original_1)
+levels(final_op_forest_1$status_group)<-c('functional','functional functional')
+needs
+repair','non
+write.csv(final_op_forest_1, file = "pump2.csv")
+#Sampling
+library(DMwR)
+smote_over<-SMOTE(status_group ~ .,train_data,perc.over
+table(smote_over$status_group)
+prop.table(table(smote_over$status_group))
+= 200)
+model_forest_smote_over <-randomForest(as.factor(status_group) ~ ., data=smote_over,
+mtry=4, importance=TRUE, ntree=60)
+confusionMatrix(predict(model_forest_smote_over, train_data), train_data$status_group)
+smote_under<-SMOTE(status_group ~ .,train_data,perc.under = 200)
+table(smote_under$status_group)
+prop.table(table(smote_under$status_group))
+model_forest_smote_under <-randomForest(as.factor(status_group) ~ ., data=smote_under, mtry=4, importance=TRUE, ntree=60)
+confusionMatrix(predict(model_forest_smote_under, train_data), train_data$status_group) smote_over_under<-SMOTE(status_group ~ .,train_data,perc.over = 100,perc.under = 100) table(smote_over_under$status_group) prop.table(table(smote_over_under$status_group))
+model_forest_smote_over_under <-randomForest(as.factor(status_group) data=smote_over_under, mtry=4, importance=TRUE, ntree=60)
+confusionMatrix(predict(model_forest_smote_over_under, train_data$status_group)
+#XGBoost
+library(caret)
+library(xgboost)
+ControlParamteres <- trainControl(method = "cv",
+~ ., train_data),
+
+DSBA/ MBAD 6211: Advanced Business Analytics - Spring 2018 - Project Report
+number = 5, savePredictions = TRUE, classProbs = TRUE
+)
+levels(train_data$status_group) <- make.names(levels(factor(train_data$status_group))) parameterGrid <- expand.grid(eta = 0.7,
+colsample_bytree=1, max_depth=20, nrounds=15, gamma=1, min_child_weight=2, subsample=0.7
+)
+#Building XGBoost on the model modelxgboost <- train(status_group~.,
+data = train_data,
+method = "xgbTree",
+trControl = ControlParamteres, tuneGrid=parameterGrid, metric = "Accuracy",
+verbose = 1,
+num_class = 3
+)
+confusionMatrix(predict(modelxgboost, train_data), train_data$status_group) pred_xgboost <- predict(modelxgboost, test_set_orginal) final_op<-data.frame(id=test_set_orginal_copy$id,status_group=pred_xgboost) levels(final_op$status_group)
+levels(final_op$status_group)<-c('functional','functional needs repair','non functional')
+
+write.csv(final_op, file = "xgboost.csv")
+final_data <- cbind(test_data, predicted_values)
+colnames <- c(colnames(test_data),"prob.one")
+write.table(final_data, file="ann_predictions.csv", sep=",", row.names=F, col.names = colnames)
+test_op<-data.frame(id=test_data$id,status_group=pred_forest_test) 
+write.csv(test_op, file = "pump.csv")
