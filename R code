@@ -14,7 +14,7 @@ test_set_orginal_copy<-test_set_orginal
 #Using the library ggplot for the plots
 library(ggplot2)
  
-DSBA/ MBAD 6211: Advanced Business Analytics - Spring 2018 - Project Report
+
 # Plot for distribution of Quantity based on Status_Group qplot(quantity, data=train_data, geom="bar", fill=status_group) +
 theme(legend.position = "top")+
 ggtitle("Plot showing distribution of Quantity based on Status_Group") # Plot for distribution of quality_group based on Status_Group qplot(quality_group, data=train_data, geom="bar", fill=status_group) +
